@@ -1,0 +1,136 @@
+#!/bin/sh
+set -e 
+usage="grabsway [-v] [-p] [-u] [-f] [-n] - an util for making screenshots and sharing it on GitHub Pages 
+    -p Copy path to clipboard
+    -u Copy url to clipboard
+    -f Grab focused window
+    -n Skip edit
+    -v Verbose
+"
+
+function _commit { ( 
+    cd $SCREENSHOTS_FOLDER
+    git add $NAME 
+    git commit -m "Added $NAME"
+    GIT_SSH_COMMAND=$GIT_SSH_COMMAND git push
+    git commit -m 'Rebuild pages' --allow-empty
+    GIT_SSH_COMMAND=$GIT_SSH_COMMAND git push 
+    ) &> $TARGET_STREAM
+}  
+function _output {
+    echo $OUTPUT_TEXT
+    if type xsel >/dev/null  2>&1; then
+            echo -n "$OUTPUT_TEXT" | xsel --clipboard
+    elif type xclip &>/dev/null; then
+            echo -n "$OUTPUT_TEXT" | xclip -selection clipboard
+    else
+            echo "Clipboard is unavaliable" 
+    fi
+}
+function _wait_until_live { (
+    while curl --fail -I $URL ; [[ $? -ne 0 ]]; do
+        sleep 1
+    done 
+    ) &> $TARGET_STREAM
+}
+CONFIGDIR=${XDG_CONFIG_HOME:-~/.config}/grabsway
+CONFIGPATH=$CONFIGDIR/config.env
+function _init {
+    mkdir -p $CONFIGDIR
+    echo "It seems that there aren't any settings avaliable"
+    echo "Do you want to use GitHub Pages uploading feature? [y, N]"
+    read ISGITHUB
+    if [ "$ISGITHUB" = y ] || [ "$ISGITHUB" = Y ] ; then
+        echo "You should complete several steps:"
+        echo "1. Create a repo on github.com, and enable Pages feature in settings"
+        echo "2. Clone the repo via SSH path"
+        echo "3. Generate an ssh key with ssh-keygen"
+        echo "4. Add generated public key to your account in GitHub"
+        echo "Specify the url under your Pages site, where you want screenshots to be accessable"
+        read BASE_URL
+        echo "Specify the path to you private SSH key. If you want to manage accessing Github on your own, you may skip this step"
+        read SSH_KEY 
+    fi
+    echo "Specify a root folder for your screenshots"
+    read SCREENSHOTS_FOLDER
+    SCREENSHOTS_FOLDER=$(realpath $SCREENSHOTS_FOLDER)
+    mkdir -p $SCREENSHOTS_FOLDER
+    echo "SCREENSHOTS_FOLDER=$SCREENSHOTS_FOLDER" >> $CONFIGPATH
+    if [ "$ISGITHUB" = y ] || [ "$ISGITHUB" = Y ] ; then
+        echo "BASE_URL=$BASE_URL" >> $CONFIGPATH
+        echo "GIT_SSH_COMMAND='ssh -i $SSH_KEY'" >> $CONFIGPATH
+    fi
+    echo "Folder is $SCREENSHOTS_FOLDER. You may access and modify you settings in $CONFIGPATH."
+}
+if [ -e $CONFIGPATH ]; then
+    source $CONFIGPATH 
+fi
+if [ -z ${SCREENSHOTS_FOLDER+x} ]; then
+    _init
+    source $CONFIGPATH 
+fi
+
+FOCUSED=false
+IS_PATH=false
+NO_EDIT=false
+TARGET_STREAM=/dev/null
+REDIRECTION=" 2>&1 /dev/null"
+while getopts ":fupnv" opt; do
+  case ${opt} in
+    f ) 
+        FOCUSED=true
+      ;;
+    u ) 
+        IS_PATH=false
+      ;;
+    p ) 
+        IS_PATH=true
+      ;;
+    n ) 
+        NO_EDIT=true
+      ;;
+    v ) 
+        TARGET_STREAM=/dev/stdout
+      ;;
+    \? ) 
+        echo "$usage" 
+        exit 0
+      ;;
+  esac
+done
+
+SCREENSHOT_TIMESTAMP=$(date +%F_%H-%M-%S_%N)
+NAME=screenshot-$SCREENSHOT_TIMESTAMP.png
+FULLPATH=$SCREENSHOTS_FOLDER/$NAME
+(
+# GRAB 
+if [ $FOCUSED ]; then
+    swaygrab "$FULLPATH"
+else
+    swaygrab --focused "$FULLPATH"
+fi
+# Edit
+if [  $NO_EDIT = false ]; then
+   gimp $FULLPATH 
+fi ) &> $TARGET_STREAM
+echo "Screen grabbed"
+
+if [ -z ${BASE_URL+x} ]; then
+        OUTPUT_TEXT=$FULLPATH
+        _output
+else
+    URL=$BASE_URL/$NAME
+    if [ $IS_PATH = true ]; then
+        OUTPUT_TEXT=$FULLPATH
+        _output
+        _commit 
+    else
+        OUTPUT_TEXT=$URL
+        _commit
+        _output
+        _wait_until_live
+    fi
+fi
+
+notify-send "Screenshot is ready
+$OUTPUT_TEXT"
