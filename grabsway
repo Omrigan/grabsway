@@ -105,9 +105,11 @@ FULLPATH=$SCREENSHOTS_FOLDER/$NAME
 (
 # GRAB 
 if [ $FOCUSED ]; then
-    swaygrab "$FULLPATH"
+    gnome-screenshot -f "$FULLPATH"
+    #swaygrab "$FULLPATH"
 else
-    swaygrab --focused "$FULLPATH"
+    gnome-screenshot -f "$FULLPATH"
+    #swaygrab --focused "$FULLPATH"
 fi
 # Edit
 if [  $NO_EDIT = false ]; then
@@ -119,17 +121,14 @@ if [ -z ${BASE_URL+x} ]; then
         OUTPUT_TEXT=$FULLPATH
         _output
 else
+    OUTPUT_TEXT=$FULLPATH
+    _output
     URL=$BASE_URL/$NAME
-    if [ $IS_PATH = true ]; then
-        OUTPUT_TEXT=$FULLPATH
-        _output
-        _commit 
-    else
-        OUTPUT_TEXT=$URL
-        _commit
-        _output
-        _wait_until_live
-    fi
+    _commit 
+    _wait_until_live
+    OUTPUT_TEXT="$OUTPUT_TEXT
+$URL"
+    _output
 fi
 
 notify-send "Screenshot is ready

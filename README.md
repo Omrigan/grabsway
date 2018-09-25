@@ -1,5 +1,5 @@
 # Grabsway
-```bash
+```
 grabsway [-v] [-p] [-u] [-f] [-n] - an util for making screenshots and sharing it on GitHub Pages 
     -p Copy path to clipboard
     -u Copy url to clipboard
@@ -7,6 +7,8 @@ grabsway [-v] [-p] [-u] [-f] [-n] - an util for making screenshots and sharing i
     -n Skip edit
     -v Verbose
 ```
+## Installation
+
 
 ## ToDo
 
